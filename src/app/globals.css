@@ -84,6 +84,41 @@ body {
 .btn-primary:active { transform: translateY(0); }
 .btn-lucid { background: linear-gradient(135deg, #8B5CF6 0%, var(--violet-lucid) 100%); }
 
+.btn-oauth {
+  background: rgba(18, 10, 31, 0.85);
+  color: var(--text-primary);
+  border: 1px solid rgba(159, 122, 234, 0.25);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.btn-oauth:hover {
+  border-color: rgba(159, 122, 234, 0.5);
+  box-shadow: 0 0 24px rgba(96, 165, 250, 0.12), 0 0 18px rgba(159, 122, 234, 0.18);
+  transform: translateY(-1px);
+}
+.btn-oauth:active { transform: translateY(0); }
+.btn-oauth:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(176, 176, 192, 0.9);
+  font-size: 0.75rem;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, transparent, rgba(159, 122, 234, 0.35), transparent);
+}
+
 .dream-input {
   background: var(--indigo-deep);
   border: 1px solid rgba(159, 122, 234, 0.2);
