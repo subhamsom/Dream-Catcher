@@ -4,23 +4,49 @@ import { createServiceClient } from "@/lib/supabase";
 export async function POST(req: NextRequest) {
   try {
     const { user_id, record_date, title, dream_content_encrypted, mood_upon_waking, is_lucid, tags } = await req.json();
-    if (!user_id || !dream_content_encrypted) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+
+    if (!user_id || !dream_content_encrypted) {
+      return NextResponse.json(
+        { error: "Missing required fields: user_id and dream_content_encrypted are required." },
+        { status: 400 }
+      );
+    }
 
     const db = createServiceClient();
-    const { data: dream, error: dreamError } = await db.from("dream_entries").insert({
-      user_id, record_date: record_date || new Date().toISOString().split("T")[0],
-      title: title || null, dream_content_encrypted,
-      mood_upon_waking: mood_upon_waking || "Neutral", is_lucid: is_lucid || false,
-    }).select().single();
-    if (dreamError) throw dreamError;
+    const { data: dream, error: dreamError } = await db
+      .from("dream_entries")
+      .insert({
+        user_id,
+        record_date: record_date || new Date().toISOString().split("T")[0],
+        title: title || null,
+        dream_content_encrypted,
+        mood_upon_waking: mood_upon_waking || "Neutral",
+        is_lucid: is_lucid ?? false,
+      })
+      .select()
+      .single();
 
-    if (tags && tags.length > 0) {
-      await db.from("dream_tags").insert(tags.map((tag: string) => ({ dream_id: dream.id, tag_text: tag })));
+    if (dreamError) {
+      console.error("POST /api/dreams Supabase insert error:", dreamError);
+      return NextResponse.json({ error: dreamError.message }, { status: 400 });
     }
+
+    if (Array.isArray(tags) && tags.length > 0) {
+      const { error: tagsError } = await db
+        .from("dream_tags")
+        .insert(tags.map((tag: string) => ({ dream_id: dream.id, tag_text: tag })));
+
+      if (tagsError) {
+        console.error("POST /api/dreams Supabase tags insert error:", tagsError);
+        return NextResponse.json({ error: tagsError.message }, { status: 400 });
+      }
+    }
+
     return NextResponse.json({ dream }, { status: 201 });
   } catch (error) {
     console.error("POST /api/dreams error:", error);
-    return NextResponse.json({ error: "Failed to save dream" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to save dream";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

@@ -7,6 +7,41 @@
 create extension if not exists "pgcrypto";
 
 -- -------------------------------------------------------
+-- ENUM TYPES
+-- (Idempotent + safe to re-run when already in use)
+-- -------------------------------------------------------
+do $$
+begin
+  -- Only drop the type if it exists and is not referenced by any table column.
+  if exists (
+    select 1
+    from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public'
+      and t.typname = 'subscription_status_enum'
+  ) and not exists (
+    select 1
+    from pg_attribute a
+    join pg_type t on t.oid = a.atttypid
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public'
+      and t.typname = 'subscription_status_enum'
+      and a.attnum > 0
+      and not a.attisdropped
+  ) then
+    execute 'drop type if exists public.subscription_status_enum';
+  end if;
+
+  begin
+    create type public.subscription_status_enum as enum ('FREE', 'ACTIVE', 'TRIAL', 'EXPIRED');
+  exception
+    when duplicate_object then
+      null;
+  end;
+end
+$$;
+
+-- -------------------------------------------------------
 -- USERS TABLE
 -- Extends Supabase auth.users with app-specific fields
 -- -------------------------------------------------------
@@ -23,6 +58,42 @@ create table if not exists public.users (
 
 -- Index for email lookups
 create index if not exists users_email_idx on public.users(email);
+
+-- -------------------------------------------------------
+-- USERS TABLE COMPATIBILITY (for older schemas)
+-- Ensures `public.users.id` exists for FKs/policies.
+-- -------------------------------------------------------
+do $$
+begin
+  if to_regclass('public.users') is not null then
+    -- Some older versions used `user_id` as the primary key column.
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'users' and column_name = 'user_id'
+    ) then
+      -- Add `id` if missing, and backfill it from `user_id`.
+      if not exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'users' and column_name = 'id'
+      ) then
+        alter table public.users add column id uuid;
+      end if;
+
+      update public.users
+      set id = user_id
+      where id is null;
+    end if;
+
+    -- Ensure `id` can be referenced by foreign keys.
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'users' and column_name = 'id'
+    ) then
+      execute 'create unique index if not exists users_id_unique_idx on public.users(id)';
+    end if;
+  end if;
+end
+$$;
 
 -- -------------------------------------------------------
 -- DREAM ENTRIES TABLE
@@ -80,26 +151,55 @@ alter table public.dream_tags     enable row level security;
 alter table public.gemini_insights enable row level security;
 
 -- Users: select/update own row only
-create policy "users_select_own" on public.users for select using (auth.uid() = id);
-create policy "users_update_own" on public.users for update using (auth.uid() = id);
+-- Some older schemas used `user_id` instead of `id` in `public.users`.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'users' and column_name = 'id'
+  ) then
+    execute 'drop policy if exists "users_select_own" on public.users';
+    execute 'create policy "users_select_own" on public.users for select using (auth.uid() = id)';
+    execute 'drop policy if exists "users_update_own" on public.users';
+    execute 'create policy "users_update_own" on public.users for update using (auth.uid() = id)';
+  elsif exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'users' and column_name = 'user_id'
+  ) then
+    execute 'drop policy if exists "users_select_own" on public.users';
+    execute 'create policy "users_select_own" on public.users for select using (auth.uid() = user_id)';
+    execute 'drop policy if exists "users_update_own" on public.users';
+    execute 'create policy "users_update_own" on public.users for update using (auth.uid() = user_id)';
+  end if;
+end
+$$;
 
 -- Dream entries: full CRUD for owner
+drop policy if exists "dreams_select_own" on public.dream_entries;
 create policy "dreams_select_own" on public.dream_entries for select using (auth.uid() = user_id);
+drop policy if exists "dreams_insert_own" on public.dream_entries;
 create policy "dreams_insert_own" on public.dream_entries for insert with check (auth.uid() = user_id);
+drop policy if exists "dreams_update_own" on public.dream_entries;
 create policy "dreams_update_own" on public.dream_entries for update using (auth.uid() = user_id);
+drop policy if exists "dreams_delete_own" on public.dream_entries;
 create policy "dreams_delete_own" on public.dream_entries for delete using (auth.uid() = user_id);
 
 -- Dream tags: owner via dream join
+drop policy if exists "tags_select_own" on public.dream_tags;
 create policy "tags_select_own" on public.dream_tags for select
   using (exists (select 1 from public.dream_entries where id = dream_id and user_id = auth.uid()));
+drop policy if exists "tags_insert_own" on public.dream_tags;
 create policy "tags_insert_own" on public.dream_tags for insert
   with check (exists (select 1 from public.dream_entries where id = dream_id and user_id = auth.uid()));
+drop policy if exists "tags_delete_own" on public.dream_tags;
 create policy "tags_delete_own" on public.dream_tags for delete
   using (exists (select 1 from public.dream_entries where id = dream_id and user_id = auth.uid()));
 
 -- Gemini insights: owner via dream join
+drop policy if exists "insights_select_own" on public.gemini_insights;
 create policy "insights_select_own" on public.gemini_insights for select
   using (exists (select 1 from public.dream_entries where id = dream_id and user_id = auth.uid()));
+drop policy if exists "insights_insert_own" on public.gemini_insights;
 create policy "insights_insert_own" on public.gemini_insights for insert
   with check (exists (select 1 from public.dream_entries where id = dream_id and user_id = auth.uid()));
 
@@ -111,9 +211,21 @@ create policy "insights_insert_own" on public.gemini_insights for insert
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer as $$
 begin
-  insert into public.users (id, email, free_insights_used, subscription_status)
-  values (new.id, new.email, 0, 'FREE')
-  on conflict (id) do nothing;
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'users' and column_name = 'id'
+  ) then
+    insert into public.users (id, email, free_insights_used, subscription_status)
+    values (new.id, new.email, 0, 'FREE')
+    on conflict (id) do nothing;
+  elsif exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'users' and column_name = 'user_id'
+  ) then
+    insert into public.users (user_id, email, free_insights_used, subscription_status)
+    values (new.id, new.email, 0, 'FREE')
+    on conflict (user_id) do nothing;
+  end if;
   return new;
 end;
 $$;
