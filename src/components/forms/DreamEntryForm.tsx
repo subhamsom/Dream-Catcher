@@ -12,19 +12,27 @@ interface DreamEntryFormProps {
   simplified?: boolean;
 }
 
+function getTodayLocalISODate(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export default function DreamEntryForm({ initialData, onSubmit, submitLabel = "Save Dream", simplified = false }: DreamEntryFormProps) {
+  const today = getTodayLocalISODate();
   const [title, setTitle] = useState(initialData?.title || "");
   const [content, setContent] = useState(initialData?.dream_content || "");
   const [mood, setMood] = useState<Mood>(initialData?.mood_upon_waking || "Neutral");
   const [isLucid, setIsLucid] = useState(initialData?.is_lucid || false);
   const [tagsInput, setTagsInput] = useState(initialData?.tags?.join(", ") || "");
-  const [date, setDate] = useState(initialData?.record_date || new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(initialData?.record_date || today);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) { setError("Dream narrative is required."); return; }
+    if (date > today) { setError("Date cannot be in the future."); return; }
     setLoading(true); setError("");
     try {
       const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
@@ -46,6 +54,7 @@ export default function DreamEntryForm({ initialData, onSubmit, submitLabel = "S
           <div className="col-span-2 sm:col-span-1">
             <label className="block text-[#B0B0C0] text-sm mb-1.5">Date</label>
             <input type="date" className="dream-input px-4 py-2.5 text-sm" value={date}
+              max={today}
               onChange={(e) => setDate(e.target.value)} style={{ colorScheme: "dark" }} />
           </div>
         </div>
