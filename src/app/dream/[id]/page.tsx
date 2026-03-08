@@ -4,6 +4,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Modal from "@/components/ui/Modal";
+import DreamEntryForm from "@/components/forms/DreamEntryForm";
 import type { DreamEntry, GeminiInsight, User } from "@/lib/types";
 import { MOOD_COLORS, MOOD_EMOJIS, formatDate, parseInsightEmbed } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ export default function DreamDetailPage() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [insightError, setInsightError] = useState("");
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -68,6 +70,60 @@ export default function DreamDetailPage() {
     router.push("/dashboard");
   };
 
+  const handleEditSubmit = async (updated: Omit<DreamEntry, "id" | "user_id" | "recorded_at" | "insight">) => {
+    if (!dream) throw new Error("Dream not loaded");
+
+    const { record_date, title, dream_content, mood_upon_waking, is_lucid, tags } = updated;
+
+    const { error: dreamError } = await supabase
+      .from("dream_entries")
+      .update({
+        record_date,
+        title: title || null,
+        dream_content_encrypted: dream_content,
+        mood_upon_waking,
+        is_lucid,
+      })
+      .eq("id", dream.id);
+
+    if (dreamError) {
+      console.error("Error updating dream:", dreamError);
+      throw new Error(dreamError.message || "Failed to update dream");
+    }
+
+    const { error: deleteTagsError } = await supabase
+      .from("dream_tags")
+      .delete()
+      .eq("dream_id", dream.id);
+
+    if (deleteTagsError) {
+      console.error("Error clearing dream tags:", deleteTagsError);
+      throw new Error(deleteTagsError.message || "Failed to update dream tags");
+    }
+
+    if (tags && tags.length > 0) {
+      const { error: tagsError } = await supabase
+        .from("dream_tags")
+        .insert(tags.map((tag) => ({ dream_id: dream.id, tag_text: tag })));
+
+      if (tagsError) {
+        console.error("Error updating dream tags:", tagsError);
+        throw new Error(tagsError.message || "Failed to update dream tags");
+      }
+    }
+
+    setDream({
+      ...dream,
+      record_date,
+      title,
+      dream_content,
+      mood_upon_waking,
+      is_lucid,
+      tags,
+    });
+    setEditing(false);
+  };
+
   const formatInsight = (text: string) => text.split("\n").map((line, i) => {
     if (line.startsWith("**") && line.endsWith("**"))
       return <h4 key={i} className="text-[#C9A0FF] font-semibold mt-4 mb-1">{line.replace(/\*\*/g, "")}</h4>;
@@ -93,6 +149,12 @@ export default function DreamDetailPage() {
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/dashboard" className="text-[#B0B0C0] hover:text-[#F5F5F5] transition-colors text-sm">← Dashboard</Link>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setEditing((prev) => !prev)}
+              className="text-[#B0B0C0] hover:text-[#C9A0FF] transition-colors text-sm px-3 py-1.5 rounded border border-white/10 hover:border-[#C9A0FF]/30"
+            >
+              {editing ? "Cancel" : "Edit"}
+            </button>
             <button onClick={() => setDeleteConfirm(true)} className="text-[#B0B0C0] hover:text-[#FF6B81] transition-colors text-sm px-3 py-1.5 rounded border border-white/10 hover:border-[#FF6B81]/30">Delete</button>
           </div>
         </div>
@@ -114,11 +176,26 @@ export default function DreamDetailPage() {
           {dream.tags.length > 0 && <div className="flex flex-wrap gap-1.5">{dream.tags.map((tag) => <span key={tag} className="tag-pill">{tag}</span>)}</div>}
         </div>
         <hr className="dream-divider" />
-        <div className="dream-card p-6 animate-slide-up">
-          <p className="text-[#F5F5F5] leading-relaxed whitespace-pre-wrap" style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "1.1rem", lineHeight: "1.8" }}>
-            {dream.dream_content}
-          </p>
-        </div>
+        {editing ? (
+          <div className="dream-card p-6 animate-slide-up">
+            <h2
+              className="dream-title-glow text-xl font-semibold text-[#F5F5F5] mb-4"
+              style={{ fontFamily: "Cormorant Garamond, serif" }}
+            >
+              Edit Dream
+            </h2>
+            <DreamEntryForm initialData={dream} onSubmit={handleEditSubmit} submitLabel="Save Changes" />
+          </div>
+        ) : (
+          <div className="dream-card p-6 animate-slide-up">
+            <p
+              className="text-[#F5F5F5] leading-relaxed whitespace-pre-wrap"
+              style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "1.1rem", lineHeight: "1.8" }}
+            >
+              {dream.dream_content}
+            </p>
+          </div>
+        )}
         <div className="animate-slide-up">
           {insight ? (
             <div className="insight-block p-6">
