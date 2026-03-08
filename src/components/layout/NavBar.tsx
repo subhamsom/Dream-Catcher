@@ -7,7 +7,7 @@ export default function NavBar({ user }: { user?: User | null }) {
   return (
     <nav className="sticky top-0 z-40 border-b border-[#9F7AEA]/10 bg-[#0A0E1F]/80 backdrop-blur-md">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2">
+        <Link href="/dashboard" className="flex items-center gap-2">
           <span className="text-xl">🌙</span>
           <span className="dream-title-glow text-lg font-bold text-[#F5F5F5]"
             style={{ fontFamily: "Cinzel Decorative, serif", fontSize: "1rem" }}>

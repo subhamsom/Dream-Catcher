@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [dreams, setDreams] = useState<DreamEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterMood, setFilterMood] = useState<Mood | "">("");
   const [filterFrom, setFilterFrom] = useState("");
@@ -36,7 +37,13 @@ export default function DashboardPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) { router.push("/login"); return; }
       const { data: profile } = await supabase.from("users").select("*").eq("id", authUser.id).single();
-      if (profile) { setUser(profile); await loadDreams(authUser.id); }
+      if (profile) {
+        setUser(profile);
+        await loadDreams(authUser.id);
+        const meta: any = authUser.user_metadata || {};
+        const nameFromAuth: string | undefined = meta.full_name || meta.name;
+        setDisplayName(nameFromAuth || profile.email || authUser.email || null);
+      }
       setLoading(false);
     };
     init();
@@ -54,10 +61,10 @@ export default function DashboardPage() {
     <div className="min-h-screen">
       <nav className="sticky top-0 z-40 border-b border-[#9F7AEA]/10 bg-[#0A0E1F]/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-2">
             <span className="text-xl">🌙</span>
             <span className="dream-title-glow font-bold text-[#F5F5F5]" style={{ fontFamily: "Cinzel Decorative, serif", fontSize: "0.9rem" }}>Dream Catcher</span>
-          </div>
+          </Link>
           <div className="flex items-center gap-3">
             {user && <InsightCounter user={user} />}
             <Link href="/dashboard/new" className="btn-primary px-4 py-2 text-sm">+ New Dream</Link>
@@ -68,7 +75,7 @@ export default function DashboardPage() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="dream-title-glow text-3xl font-semibold text-[#F5F5F5] mb-1" style={{ fontFamily: "Cormorant Garamond, serif" }}>Your Dreamscape</h1>
-          <p className="text-[#B0B0C0] text-sm">{user?.email} · {stats.total} dream{stats.total !== 1 ? "s" : ""} recorded</p>
+          <p className="text-[#B0B0C0] text-sm">{displayName || user?.email} · {stats.total} dream{stats.total !== 1 ? "s" : ""} recorded</p>
         </div>
         {stats.total > 0 && <DreamStatsWidget stats={stats} />}
         <div className="dream-card p-4 mb-6">

@@ -43,7 +43,9 @@ export default function NewDreamPage() {
       <nav className="sticky top-0 z-40 border-b border-[#9F7AEA]/10 bg-[#0A0E1F]/80 backdrop-blur-md">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2 text-[#B0B0C0] hover:text-[#F5F5F5] transition-colors">← Dashboard</Link>
-          <span className="dream-title-glow font-bold text-[#F5F5F5]" style={{ fontFamily: "Cinzel Decorative, serif", fontSize: "0.8rem" }}>Dream Catcher</span>
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <span className="dream-title-glow font-bold text-[#F5F5F5]" style={{ fontFamily: "Cinzel Decorative, serif", fontSize: "0.8rem" }}>Dream Catcher</span>
+          </Link>
         </div>
       </nav>
       <div className="max-w-2xl mx-auto px-4 py-10">
