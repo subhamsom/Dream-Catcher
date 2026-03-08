@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { parseInsightEmbed } from "@/lib/utils";
 import type { DreamEntry } from "@/lib/types";
 
 interface DreamContextType {
@@ -32,7 +33,7 @@ export function DreamProvider({ children }: { children: React.ReactNode }) {
       setDreams(data.map((d) => ({
         ...d,
         tags: (d.tags || []).map((t: { tag_text: string }) => t.tag_text),
-        insight: d.insight?.[0] || null,
+        insight: parseInsightEmbed(d.insight),
         dream_content: d.dream_content_encrypted || "",
       })));
     }

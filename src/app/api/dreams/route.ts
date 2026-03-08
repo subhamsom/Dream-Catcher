@@ -71,8 +71,13 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
+    const parseInsight = (embed: unknown) =>
+      embed == null ? null : Array.isArray(embed) ? (embed[0] ?? null) : embed;
     let dreams = (data || []).map((d) => ({
-      ...d, tags: (d.tags || []).map((t: { tag_text: string }) => t.tag_text), insight: d.insight?.[0] || null,
+      ...d,
+      dream_content: d.dream_content_encrypted ?? "",
+      tags: (d.tags || []).map((t: { tag_text: string }) => t.tag_text),
+      insight: parseInsight(d.insight),
     }));
     if (search) {
       const q = search.toLowerCase();

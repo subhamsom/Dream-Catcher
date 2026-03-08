@@ -12,6 +12,7 @@ export default function UpgradePage() {
   const cancelled = searchParams?.get("cancelled") === "true";
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -24,11 +25,17 @@ export default function UpgradePage() {
   const handleSubscribe = async () => {
     if (!user) return;
     setLoading(true);
+    setShowComingSoon(false);
     const res = await fetch("/api/subscription", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: user.id, email: user.email }),
     });
-    if (res.ok) { const { url } = await res.json(); if (url) window.location.href = url; }
+    const data = await res.json();
+    if (data.coming_soon) {
+      setShowComingSoon(true);
+    } else if (res.ok && data.url) {
+      window.location.href = data.url;
+    }
     setLoading(false);
   };
 
@@ -57,3 +64,28 @@ export default function UpgradePage() {
             <p className="text-[#FF6B81] text-sm">Subscription was cancelled. No charge was made.</p>
           </div>
         )}
+        {showComingSoon && (
+          <div className="mb-8 p-6 rounded-xl border border-[#C9A0FF]/30 bg-[#C9A0FF]/10">
+            <p className="lucid-glow font-semibold text-lg">Coming Soon</p>
+            <p className="text-[#B0B0C0] text-sm mt-1">Premium subscriptions are not yet available. Check back soon!</p>
+          </div>
+        )}
+        {isPremium ? (
+          <div className="paywall-card p-6 max-w-md mx-auto">
+            <p className="lucid-glow font-semibold">✦ Welcome to Premium!</p>
+            <p className="text-[#B0B0C0] text-sm mt-1">You have unlimited AI dream insights.</p>
+          </div>
+        ) : (
+          <div className="paywall-card p-6 max-w-md mx-auto">
+            <h2 className="dream-title-glow text-xl font-semibold text-[#F5F5F5] mb-4" style={{ fontFamily: "Cormorant Garamond, serif" }}>Unlock Unlimited Insights</h2>
+            <p className="text-[#C9A0FF] text-2xl font-bold mb-1">₹499<span className="text-sm font-normal text-[#B0B0C0]">/month</span></p>
+            <p className="text-[#B0B0C0] text-sm mb-6">Unlimited AI dream analysis · Cancel anytime</p>
+            <button onClick={handleSubscribe} disabled={loading} className="btn-primary btn-lucid w-full py-3 text-sm font-medium">
+              {loading ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Processing...</span> : "Unlock Now — ₹499/mo ✦"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -46,6 +46,13 @@ export function formatDate(dateStr: string): string {
   });
 }
 
-export function truncate(str: string, len = 120): string {
+/** Parse Supabase embed: one-to-one returns object, one-to-many returns array */
+export function parseInsightEmbed<T>(embed: T | T[] | null | undefined): T | null {
+  if (embed == null) return null;
+  return Array.isArray(embed) ? (embed[0] ?? null) : embed;
+}
+
+export function truncate(str: string | undefined | null, len = 120): string {
+  if (str == null || typeof str !== "string") return "";
   return str.length > len ? str.slice(0, len) + "…" : str;
 }

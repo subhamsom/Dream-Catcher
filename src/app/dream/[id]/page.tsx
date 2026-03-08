@@ -5,7 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Modal from "@/components/ui/Modal";
 import type { DreamEntry, GeminiInsight, User } from "@/lib/types";
-import { MOOD_COLORS, MOOD_EMOJIS, formatDate } from "@/lib/utils";
+import { MOOD_COLORS, MOOD_EMOJIS, formatDate, parseInsightEmbed } from "@/lib/utils";
 
 const FREE_LIMIT = 5;
 
@@ -35,7 +35,7 @@ export default function DreamDetailPage() {
         ...dreamData,
         tags: (dreamData.tags || []).map((t: { tag_text: string }) => t.tag_text),
         dream_content: dreamData.dream_content_encrypted || "",
-        insight: dreamData.insight?.[0] || null,
+        insight: parseInsightEmbed(dreamData.insight),
       };
       setDream(normalized); setInsight(normalized.insight || null); setLoading(false);
     };

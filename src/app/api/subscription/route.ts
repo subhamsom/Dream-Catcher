@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 
+const isStripeConfigured = () =>
+  !!(
+    process.env.STRIPE_SECRET_KEY?.trim() &&
+    process.env.STRIPE_PRICE_ID?.trim()
+  );
+
 /** POST /api/subscription — create Stripe Checkout session */
 export async function POST(req: NextRequest) {
   try {
+    if (!isStripeConfigured()) {
+      return NextResponse.json({ coming_soon: true });
+    }
     const { user_id, email } = await req.json();
     const Stripe = (await import("stripe")).default;
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -27,6 +36,9 @@ export async function POST(req: NextRequest) {
 /** PUT /api/subscription — Stripe webhook handler */
 export async function PUT(req: NextRequest) {
   try {
+    if (!isStripeConfigured()) {
+      return NextResponse.json({ received: true });
+    }
     const Stripe = (await import("stripe")).default;
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
     const body = await req.text();
